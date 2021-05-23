@@ -4,9 +4,12 @@ const { hasUncaughtExceptionCaptureCallback } = require('process');
 const request = require('supertest');
 const app = require('../app');
 const db = require('../db');
-const items = require('../db');
 
 const apple = { code: "apple", name: 'Apple Computer', description: 'Maker of OSX.' };
+beforeAll(async () => {
+    await db.query(`DELETE FROM invoices`);
+    await db.query(`DELETE FROM companies`);
+});
 
 beforeEach(async () => {
     await db.query(`INSERT INTO companies(code, name, description)\
@@ -18,7 +21,8 @@ afterEach(async () => {
 });
 
 afterAll(async () => { 
-        await db.end();
+    await db.query('DELETE FROM invoices');
+    await db.end();
 });
 
 describe('GET /companies', () => {
@@ -31,14 +35,18 @@ describe('GET /companies', () => {
 
 
 describe('GET /companies/:code', () => {
-    test('Responds with item', async () => {
+    test('Responds with company', async () => {
+        const invoiceData = await db.query(`INSERT INTO invoices(comp_code, amt)\
+        VALUES('${apple.code}', 400) RETURNING *`);
+
+        const invoiceId = invoiceData.rows[0].id;
         const res = await request(app).get(`/companies/${apple.code}`);
         expect(res.statusCode).toBe(200);
-        expect(res.body).toEqual({company: apple});
+        expect(res.body).toEqual({company: {...apple, invoices:[invoiceId]}});
     });
 
     test('throws 404 if no company', async () => {
-        const res = await request(app).get('/items/nadabing');
+        const res = await request(app).get('/companies/nadabing');
         expect(res.statusCode).toBe(404);
     });
 });
@@ -135,7 +143,7 @@ describe('PUT /companies/:name', () => {
 
     });
 
-    test('throws 404 if no item', async () => {
+    test('throws 404 if no company', async () => {
         const res = await request(app).get('/companies/nadabing');
         expect(res.statusCode).toBe(404);
     })

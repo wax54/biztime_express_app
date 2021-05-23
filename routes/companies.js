@@ -17,13 +17,15 @@ router.get('', async (req, res, next) =>{
 });
 
 router.post('/', async (req, res, next) => {
+
+    const { code, name, description } = req.body;
+
+    if (!code || !name || !description) {
+        //If any of the inputs are empty, this should return a 400 status response.
+        const e = new ExpressError('missing code, name, or description', 400);
+        return next(e);
+    }
     try {
-        const {code, name, description} = req.body;
-        if (!code || !name || !description) {
-            //If any of the inputs are empty, this should return a 400 status response.
-            const e = new ExpressError('missing code, name, or description', 400);
-            return next(e);
-        }
         const data = await db.query(`INSERT INTO companies(code, name, description) VALUES ($1, $2, $3) RETURNING *`, [code, name, description]);
         return res.status(201).json({ company: data.rows[0] });
     } catch (e) {
@@ -32,37 +34,42 @@ router.post('/', async (req, res, next) => {
 });
 
 router.get('/:code', async (req, res, next) => {
+    const comp_code = req.params.code;
     try{
         //Return obj of company: {company: {code, name, description}}
-        const data = await db.query(`SELECT code, name, description FROM companies WHERE code = '${req.params.code}'`);
+        const compData = await db.query(`SELECT code, name, description FROM companies WHERE code = $1`, [comp_code]);
         
-        if (data.rows.length === 0) {
+        if (compData.rows.length === 0) {
             //If the company given cannot be found, this should return a 404 status response.
             return next(companyNotFoundError);
         }
+        const company = compData.rows[0];
 
-        return res.json({company: data.rows[0]});
+        const invoicesData = await db.query('SELECT * FROM invoices WHERE comp_code = $1', [comp_code]);
+        const invoiceIds = invoicesData.rows.map(invoice => invoice.id);
+
+        return res.json({company: {...company, invoices: invoiceIds}});
     } catch (e) {
         return next(e);
     }
 });
 
 router.put('/:code', async (req, res, next) => {
-    try {
-        const code = req.params.code
-        const { name, description } = req.body;
 
+    const code = req.params.code
+    const { name, description } = req.body;
+
+    try {
         if (!code || !name || !description) {
             //If any of the inputs are empty, this should return a 400 status response.
             const e = new ExpressError('missing code, name, or description', 400);
             return next(e);
         }
-        const data = await db.query(`UPDATE companies SET name = $2, description = $3 WHERE code  = $1  RETURNING *`, [code, name, description]);
+        const data = await db.query(`UPDATE companies SET name = $2, description = $3 WHERE code = $1 RETURNING *`, [code, name, description]);
         if (data.rows.length == 0) {
             //If the company given cannot be found, this should return a 404 status response.
             return next(companyNotFoundError);
         }
-
         return res.json({ company: data.rows[0] });
     } catch (e) {
         return next(e);
@@ -70,8 +77,9 @@ router.put('/:code', async (req, res, next) => {
 });
 
 router.delete('/:code', async (req, res, next) =>{
+
+    const code = req.params.code;
     try{
-        const code = req.params.code;
         const data = await db.query("DELETE FROM companies WHERE code = $1", [code]);
         if (data.rowCount === 0){
             return next(companyNotFoundError);
