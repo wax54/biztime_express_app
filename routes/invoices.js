@@ -99,11 +99,19 @@ router.put('/:id', async (req, res, next) =>{
 
 router.delete('/:id', async (req, res, next) =>{
     const id = req.params.id;
-    const deleted = await db.query('DELETE FROM invoices WHERE id = $1', [id]);
-    if(resultNotPresent(deleted))
-        return next(invoiceNotFoundError);
-    else{
-        return res.json({status:'deleted'});
+    try{
+        const deleted = await db.query('DELETE FROM invoices WHERE id = $1', [id]);
+        if(resultNotPresent(deleted))
+            return next(invoiceNotFoundError);
+        else{
+            return res.json({status:'deleted'});
+        }
+    } catch (e) {
+        //handles the input not numeric error
+        if (e.code === "22P02") {
+            return next(invoiceNotFoundError);
+        }
+        return next(e);
     }
 });
 
