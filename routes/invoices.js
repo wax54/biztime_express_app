@@ -47,7 +47,7 @@ router.post('', async (req, res, next) => {
 
     const { comp_code, amt } = req.body;
     try {
-        if (!comp_code || !amt){
+        if (!comp_code || amt === undefined){
             //If any of the inputs are empty, this should return a 400 status response.
             const e = new ExpressError('missing comp_code or amt', 400);
             return next(e);
@@ -71,26 +71,45 @@ router.post('', async (req, res, next) => {
 router.put('/:id', async (req, res, next) =>{
     const id = req.params.id;
     const amt = req.body.amt;
+    const paid = req.body.paid;
+    let invoiceData;
     try{
-        if(!amt){
+        if( amt === undefined || paid === undefined){
             //handles no amt input
-            const e = new ExpressError('missing amt', 400);
+            const e = new ExpressError('missing params amt or paid', 400);
             return next(e);
         }
-        const invoiceData = await db.query("UPDATE invoices SET amt = $1 WHERE id = $2 RETURNING *", [amt, id]);
+        else {
+            //if the newest amout is paid
+            if(paid){
+                const isInvoicePaidData = await db.query("SELECT paid FROM invoices WHERE id = $1", [id]);
+                if (resultNotPresent(isInvoicePaidData)){
+                    //handles no results 404
+                    return next(invoiceNotFoundError);
+                }
+                const invoicePaid = isInvoicePaidData.rows[0].paid;
+                if (invoicePaid){
+                    invoiceData = await db.query("UPDATE invoices SET amt = $1 WHERE id = $2 RETURNING *", [amt, id]);
+                } else {
+                    invoiceData = await db.query("UPDATE invoices SET amt = $1, paid = $2, paid_date = $3 WHERE id = $4 RETURNING *", [amt, paid, new Date(), id]);
+                }
+            }else{
+                invoiceData = await db.query("UPDATE invoices SET amt = $1, paid = $2, paid_date = NULL WHERE id = $3 RETURNING *", [amt, paid, id]);
+                if (resultNotPresent(invoiceData)){
 
-        if (resultNotPresent(invoiceData))
-            //handles no results 404
-            return next(invoiceNotFoundError);
-        else{
+                    //handles no results 404
+                    return next(invoiceNotFoundError);
+                }
+            }
             const invoice = invoiceData.rows[0];
-            return res.json({invoice})
+            return res.json({invoice});
         }
     } catch (e) {
-        //handles the input not numeric error
-        if (e.code === "22P02") {
-            return next(invoiceNotFoundError);
-        }
+            console.log(e);
+            //handles the input id not numeric error
+            if (e.code === "22P02") {
+                return next(invoiceNotFoundError);
+            }
         return next(e);
     }
 });

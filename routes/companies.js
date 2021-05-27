@@ -37,16 +37,23 @@ router.get('/:code', async (req, res, next) => {
     const comp_code = req.params.code;
     try{
         //Return obj of company: {company: {code, name, description}}
-        const compData = await db.query(`SELECT code, name, description FROM companies WHERE code = $1`, [comp_code]);
+        const compData = await db.query(`
+                        SELECT c.code, c.name, c.description, i.name as industries 
+                        FROM companies AS c 
+                        LEFT JOIN companies_industries AS c_i ON c.code = c_i.comp_code 
+                        LEFT JOIN industries AS i ON i.code = c_i.industry_code 
+                        WHERE c.code = $1`, [comp_code]);
         
         if (compData.rows.length === 0) {
             //If the company given cannot be found, this should return a 404 status response.
             return next(companyNotFoundError);
         }
         const company = compData.rows[0];
+        company.industries = compData.rows.map( row => row.industries);
 
         const invoicesData = await db.query('SELECT * FROM invoices WHERE comp_code = $1', [comp_code]);
         const invoiceIds = invoicesData.rows.map(invoice => invoice.id);
+        
 
         return res.json({company: {...company, invoices: invoiceIds}});
     } catch (e) {
