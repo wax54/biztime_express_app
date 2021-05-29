@@ -1,5 +1,7 @@
 const express = require("express");
+const slugify = require("slugify");
 const db = require("../db");
+
 
 const ExpressError = require("../expressError");
 
@@ -16,16 +18,16 @@ router.get('', async (req, res, next) =>{
     }
 });
 
-router.post('/', async (req, res, next) => {
+router.post('', async (req, res, next) => {
 
-    const { code, name, description } = req.body;
-
-    if (!code || !name || !description) {
+    const { name, description } = req.body;
+    if (!name || !description) {
         //If any of the inputs are empty, this should return a 400 status response.
-        const e = new ExpressError('missing code, name, or description', 400);
+        const e = new ExpressError('missing name, or description', 400);
         return next(e);
     }
     try {
+        const code = slugify(name, {lower: true});
         const data = await db.query(`INSERT INTO companies(code, name, description) VALUES ($1, $2, $3) RETURNING *`, [code, name, description]);
         return res.status(201).json({ company: data.rows[0] });
     } catch (e) {
@@ -40,7 +42,7 @@ router.get('/:code', async (req, res, next) => {
         const compData = await db.query(`
                         SELECT c.code, c.name, c.description, i.name as industries 
                         FROM companies AS c 
-                        LEFT JOIN companies_industries AS c_i ON c.code = c_i.comp_code 
+                        LEFT JOIN companies_industries AS c_i ON c.code = c_i.comp_code
                         LEFT JOIN industries AS i ON i.code = c_i.industry_code 
                         WHERE c.code = $1`, [comp_code]);
         
@@ -49,7 +51,9 @@ router.get('/:code', async (req, res, next) => {
             return next(companyNotFoundError);
         }
         const company = compData.rows[0];
-        company.industries = compData.rows.map( row => row.industries);
+        if(compData.rows[0].industries){
+            company.industries = compData.rows.map( row => row.industries);
+        } else { company.industries = []}
 
         const invoicesData = await db.query('SELECT * FROM invoices WHERE comp_code = $1', [comp_code]);
         const invoiceIds = invoicesData.rows.map(invoice => invoice.id);
@@ -84,7 +88,6 @@ router.put('/:code', async (req, res, next) => {
 });
 
 router.delete('/:code', async (req, res, next) =>{
-
     const code = req.params.code;
     try{
         const data = await db.query("DELETE FROM companies WHERE code = $1", [code]);
@@ -94,6 +97,28 @@ router.delete('/:code', async (req, res, next) =>{
             return res.json({status: "deleted"});
         }
     } catch (e) {
+
+        return next(e);
+    }
+});
+
+
+router.post('/:code/add_industry', async (req, res, next) => {
+
+    const comp_code = req.params.code;
+    const { industry_code } = req.body;
+
+    if (!industry_code) {
+        //If any of the inputs are empty, this should return a 400 status response.
+        const e = new ExpressError('missing industry_codes from json (should be an array)', 400);
+        return next(e);
+    }
+    try {
+        const data = await db.query(`INSERT INTO companies_industries(comp_code, industry_code) 
+                                    VALUES ($1, $2) RETURNING *`, [comp_code, industry_code]);
+        return res.status(201).json({ industry: data.rows[0] });
+    } catch (e) {
+        console.log(e);
         return next(e);
     }
 });

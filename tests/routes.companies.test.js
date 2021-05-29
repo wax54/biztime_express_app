@@ -1,33 +1,37 @@
 process.env.NODE_ENV = 'test';
 
-const { hasUncaughtExceptionCaptureCallback } = require('process');
 const request = require('supertest');
+const slugify = require('slugify');
 const app = require('../app');
 const db = require('../db');
 
 describe('Company API TESTS', () => {
-    const apple = { code: "apple", name: 'Apple Computer', description: 'Maker of OSX.' };
-    beforeAll(async () => {
-        await db.query("DROP TABLE IF EXISTS invoices;\
-            DROP TABLE IF EXISTS companies;");
-        await db.query("CREATE TABLE companies(\
-            code text PRIMARY KEY, \
-            name text NOT NULL UNIQUE, \
-            description text);");
-        await db.query("CREATE TABLE invoices(\
-            id serial PRIMARY KEY,\
-            comp_code text NOT NULL REFERENCES companies ON DELETE CASCADE,\
-            amt float NOT NULL,\
-            paid boolean DEFAULT false NOT NULL,\
-            add_date date DEFAULT CURRENT_DATE NOT NULL,\
-            paid_date date,\
-            CONSTRAINT invoices_amt_check CHECK((amt > (0):: double precision)));"
-            );
-    });
+    const apple = { name: 'Apple Computer', description: 'Maker of OSX.' };
+    apple.code = slugify(apple.name, {lower: true});
+    // beforeAll(async () => {
+    //     await db.query("DROP TABLE IF EXISTS invoices;\
+    //         DROP TABLE IF EXISTS companies;");
+    //     await db.query("CREATE TABLE companies(\
+    //         code text PRIMARY KEY, \
+    //         name text NOT NULL UNIQUE, \
+    //         description text);");
+    //     await db.query("CREATE TABLE invoices(\
+    //         id serial PRIMARY KEY,\
+    //         comp_code text NOT NULL REFERENCES companies ON DELETE CASCADE,\
+    //         amt float NOT NULL,\
+    //         paid boolean DEFAULT false NOT NULL,\
+    //         add_date date DEFAULT CURRENT_DATE NOT NULL,\
+    //         paid_date date,\
+    //         CONSTRAINT invoices_amt_check CHECK((amt > (0):: double precision)));"
+    //         );
+    // });
 
     beforeEach(async () => {
+
+        await db.query('DELETE FROM companies_industries;');
         await db.query('DELETE FROM companies;');
         await db.query('DELETE FROM invoices;');
+        await db.query('DELETE FROM industries;');
         await db.query(`INSERT INTO companies(code, name, description)\
         VALUES('${apple.code}', '${apple.name}', '${apple.description}');`);
     });
@@ -36,8 +40,6 @@ describe('Company API TESTS', () => {
     });
 
     afterAll(async () => {
-        await db.query("DROP TABLE IF EXISTS invoices;\
-            DROP TABLE IF EXISTS companies;");
         await db.end();
     });
 
@@ -58,7 +60,7 @@ describe('Company API TESTS', () => {
             const invoiceId = invoiceData.rows[0].id;
             const res = await request(app).get(`/companies/${apple.code}`);
             expect(res.statusCode).toBe(200);
-            expect(res.body).toEqual({company: {...apple, invoices:[invoiceId]}});
+            expect(res.body).toEqual({company: {...apple, industries:[], invoices:[invoiceId]}});
         });
 
         test('throws 404 if no company', async () => {
@@ -69,7 +71,8 @@ describe('Company API TESTS', () => {
 
 
     describe('POST /companies', () => {
-        const ibm = { code: 'ibm', name: 'IBM', description: 'Big blue.' };
+        const ibm = { name: 'IBM', description: 'Big blue.' };
+        ibm.code = slugify(ibm.name, { lower: true });
 
         test('Returns the new company', async () => {
 
@@ -174,7 +177,7 @@ describe('Company API TESTS', () => {
      * Returns {status: "deleted"}
      */
 
-    describe('DELETE /companies/:name', () => {
+    describe('DELETE /companies/:code', () => {
         test('Responds with message Deleted', async () => {
             const res = await request(app)
                 .delete(`/companies/${apple.code}`);

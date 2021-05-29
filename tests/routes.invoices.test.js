@@ -1,6 +1,7 @@
 process.env.NODE_ENV = 'test';
 
 const request = require('supertest');
+const slugify = require('slugify');
 const app = require('../app');
 const db = require('../db');
 
@@ -23,33 +24,38 @@ describe('Company API TESTS', () => {
             paid: true,
             paid_date: '2020-01-01'
         }];
- 
+
+    const apple = { name: 'Apple Computer', description: 'Maker of OSX.' };
+    apple.code = slugify(apple.name, { lower: true });
+    const ibm = { code: 'ibm', name: 'IBM', descrition: 'Big blue.' };
+    ibm.code = slugify(ibm.name, { lower: true });
+
     
-    beforeEach( async() => {
-        await db.query("DROP TABLE IF EXISTS invoices;\
-            DROP TABLE IF EXISTS companies;");
-        await db.query("CREATE TABLE companies(\
-            code text PRIMARY KEY, \
-            name text NOT NULL UNIQUE, \
-            description text);");
-        await db.query("CREATE TABLE invoices(\
-            id serial PRIMARY KEY,\
-            comp_code text NOT NULL REFERENCES companies ON DELETE CASCADE,\
-            amt float NOT NULL,\
-            paid boolean DEFAULT false NOT NULL,\
-            add_date date DEFAULT CURRENT_DATE NOT NULL,\
-            paid_date date,\
-            CONSTRAINT invoices_amt_check CHECK((amt > (0):: double precision)));"
-        );
-    });
+    // beforeEach( async() => {
+    //     await db.query("DROP TABLE IF EXISTS invoices;\
+    //         DROP TABLE IF EXISTS companies;");
+    //     await db.query("CREATE TABLE companies(\
+    //         code text PRIMARY KEY, \
+    //         name text NOT NULL UNIQUE, \
+    //         description text);");
+    //     await db.query("CREATE TABLE invoices(\
+    //         id serial PRIMARY KEY,\
+    //         comp_code text NOT NULL REFERENCES companies ON DELETE CASCADE,\
+    //         amt float NOT NULL,\
+    //         paid boolean DEFAULT false NOT NULL,\
+    //         add_date date DEFAULT CURRENT_DATE NOT NULL,\
+    //         paid_date date,\
+    //         CONSTRAINT invoices_amt_check CHECK((amt > (0):: double precision)));"
+    //     );
+    // });
 
     beforeEach(async () => {
+
+        await db.query(`DELETE FROM companies_industries;`);
+        await db.query(`DELETE FROM industries;`);
         await db.query(`DELETE FROM invoices;`);
         await db.query(`DELETE FROM companies;`);
         try {
-            const apple = { code: "apple", name: 'Apple Computer', description: 'Maker of OSX.' };
-            const ibm = { code: 'ibm', name: 'IBM', descrition: 'Big blue.' };
-
             await db.query(`INSERT INTO companies(code, name, description)\
             VALUES('${apple.code}', '${apple.name}', '${apple.description}'),\
                     ('${ibm.code}', '${ibm.name}', '${ibm.description}');`);
@@ -67,8 +73,6 @@ describe('Company API TESTS', () => {
 
     //VERY IMPORTANT OR ELSE CONNECTION WILL PERSIST AFTER CODE FINISHES
     afterAll(async () => { 
-        await db.query("DROP TABLE IF EXISTS invoices;\
-            DROP TABLE IF EXISTS companies;");
         await db.end();
     });
 
@@ -202,7 +206,7 @@ describe('Company API TESTS', () => {
     // Returns: { invoice: { id, comp_code, amt, paid, add_date, paid_date } }
     describe('PUT /invoices/:id', () => {
 
-        const updatedData = { amt: 800};
+        const updatedData = {amt: 800, paid: false};
 
         test('Responds with invoice', async () => {
 
@@ -214,7 +218,7 @@ describe('Company API TESTS', () => {
                 id: invoices[0].id,
                 comp_code: invoices[0].comp_code,
                 amt: updatedData.amt,
-                paid: invoices[0].paid,
+                paid: updatedData.paid,
                 add_date: invoices[0].add_date.toJSON(),
                 paid_date: invoices[0].paid_date
             };

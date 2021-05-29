@@ -48,6 +48,7 @@ INSERT INTO industries (code, name)
   VALUES ('ecom', 'eCommerce'),
          ('phon', 'Phones'),
          ('comps', 'Computers');
+         
 INSERT INTO companies_industries (comp_code, industry_code)
   VALUES ('apple','ecom'),
          ('apple', 'phon'),

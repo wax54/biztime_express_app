@@ -13,6 +13,7 @@
   "dependencies": {
     "express": "^4.17.1",
     "pg": "^8.6.0",
+    "slugify": "^1.5.3",
     "supertest": "^6.1.3"
   }
 }
