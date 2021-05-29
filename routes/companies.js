@@ -26,12 +26,18 @@ router.post('', async (req, res, next) => {
         const e = new ExpressError('missing name, or description', 400);
         return next(e);
     }
+    const code = slugify(name, { lower: true });
     try {
-        const code = slugify(name, {lower: true});
         const data = await db.query(`INSERT INTO companies(code, name, description) VALUES ($1, $2, $3) RETURNING *`, [code, name, description]);
         return res.status(201).json({ company: data.rows[0] });
     } catch (e) {
-        return next(e);
+        if (e.code == '23505'){
+            //If the company already exists should return a 400 status response.
+            const compExistsError = new ExpressError(`company named ${name} already exists with code ${code}`, 400);
+            return next(compExistsError);
+        } else {
+            return next(e);
+        }
     }
 });
 

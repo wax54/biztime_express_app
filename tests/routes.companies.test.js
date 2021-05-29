@@ -80,7 +80,11 @@ describe('Company API TESTS', () => {
             expect(res.statusCode).toBe(201);
             expect(res.body).toEqual({ company: ibm });
         });
+        test('Throws error if company exists', async () => {
 
+            const res = await request(app).post('/companies').send(apple);
+            expect(res.statusCode).toBe(400);
+        });
         test('New company in companies', async () => {
             await request(app).post('/companies').send(ibm);
 
